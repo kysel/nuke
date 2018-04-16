@@ -33,7 +33,7 @@ using static Nuke.Core.EnvironmentInfo;
 
 class Build : NukeBuild
 {
-    public static int Main() => Execute<Build>(x => x.Pack);
+    public static int Main() => Execute<Build>(x => x.Restore);
 
     [Parameter("Indicates to push to nuget.org feed.")] readonly bool NuGet;
     [Parameter("ApiKey for the specified source.")] readonly string ApiKey;
@@ -44,7 +44,7 @@ class Build : NukeBuild
         ? "https://api.nuget.org/v3/index.json"
         : "https://www.myget.org/F/nukebuild/api/v2/package";
 
-    [GitVersion] readonly GitVersion GitVersion;
+    //[GitVersion] readonly GitVersion GitVersion;
     [GitRepository] readonly GitRepository GitRepository;
     [Solution] readonly Solution Solution;
 
@@ -62,14 +62,7 @@ class Build : NukeBuild
             DotNetRestore(s => DefaultDotNetRestore);
         });
 
-    Target Compile => _ => _
-        .DependsOn(Restore)
-        .Requires(() => IsUnix || GitVersion != null)
-        .Executes(() =>
-        {
-            DotNetBuild(s => DefaultDotNetBuild);
-        });
-
+  
     Target Publish => _ => _
         .DependsOn(Restore)
         .Executes(() =>
@@ -87,96 +80,11 @@ class Build : NukeBuild
 
     IEnumerable<string> ChangelogSectionNotes => ExtractChangelogSectionNotes(ChangelogFile);
 
-    Target Changelog => _ => _
-        .OnlyWhen(() => NuGet || InvokedTargets.Contains(nameof(Changelog)))
-        .Executes(() =>
-        {
-            FinalizeChangelog(ChangelogFile, GitVersion.SemVer, GitRepository);
+  
+   
 
-            Git($"add {ChangelogFile}");
-            Git($"commit -m \"Finalize {Path.GetFileName(ChangelogFile)} for {GitVersion.SemVer}.\"");
-            Git($"tag -f {GitVersion.SemVer}");
-        });
-
-    Target Pack => _ => _
-        .DependsOn(Compile, Publish, Changelog)
-        .Executes(() =>
-        {
-            var releaseNotes = ChangelogSectionNotes
-                .Select(x => x.Replace("- ", "\u2022 ").Replace("`", string.Empty).Replace(",", "%2C"))
-                .Concat(string.Empty)
-                .Concat($"Full changelog at {GitRepository.GetGitHubBrowseUrl(ChangelogFile)}")
-                .JoinNewLine();
-
-            DotNetPack(s => DefaultDotNetPack
-                .SetPackageReleaseNotes(releaseNotes));
-        });
-
-    Target Push => _ => _
-        .DependsOn(Pack)
-        .Requires(() => ApiKey)
-        .Requires(() => !GitHasUncommitedChanges())
-        .Requires(() => !NuGet || GitVersionAttribute.Bump.HasValue)
-        .Requires(() => !NuGet || Configuration.EqualsOrdinalIgnoreCase("release"))
-        .Requires(() => !NuGet || GitVersion.BranchName.Equals("master"))
-        .Executes(() =>
-        {
-            GlobFiles(OutputDirectory, "*.nupkg").NotEmpty()
-                .Where(x => !x.EndsWith("symbols.nupkg"))
-                .ForEach(x => DotNetNuGetPush(s => s
-                    .SetTargetPath(x)
-                    .SetSource(Source)
-                    .SetApiKey(ApiKey)));
-
-            if (NuGet)
-            {
-                SendGitterMessage(new StringBuilder()
-                        .AppendLine(":mega::shipit: @/all")
-                        .AppendLine()
-                        .AppendLine($"**NUKE {GitVersion.SemVer} IS OUT!!!**")
-                        .AppendLine()
-                        .AppendLine($"This release includes [{ChangelogSectionNotes.Count()} changes]"
-                                    + $"(https://www.nuget.org/packages/Nuke.Common/{GitVersion.SemVer}). "
-                                    + "Most notably, we have:")
-                        .AppendLine(ChangelogSectionNotes
-                            .Take(AnnounceChanges ?? 4)
-                            .Select(x => x.Replace("- ", "* "))
-                            .JoinNewLine()).ToString(),
-                    roomId: "593f3dadd73408ce4f66db89",
-                    token: GitterAuthToken);
-            }
-        });
-
-    Target Analysis => _ => _
-        .DependsOn(Restore)
-        .Executes(() =>
-        {
-            InspectCode(s => DefaultInspectCode
-                .AddExtensions(
-                    "EtherealCode.ReSpeller",
-                    "PowerToys.CyclomaticComplexity",
-                    "ReSharper.ImplicitNullability",
-                    "ReSharper.SerializationInspections",
-                    "ReSharper.XmlDocInspections"));
-        });
-
-    Target Test => _ => _
-        .DependsOn(Compile)
-        .Executes(() =>
-        {
-            var xunitSettings = new Xunit2Settings()
-                .AddTargetAssemblies(GlobFiles(SolutionDirectory, $"*/bin/{Configuration}/net4*/Nuke.*.Tests.dll").NotEmpty())
-                .AddResultReport(Xunit2ResultFormat.Xml, OutputDirectory / "tests.xml");
-
-            if (IsWin)
-            {
-                OpenCover(s => DefaultOpenCover
-                    .SetOutput(OutputDirectory / "coverage.xml")
-                    .SetTargetSettings(xunitSettings));
-            }
-            else
-                Xunit2(s => xunitSettings);
-        });
+   
+   
 
     string MetadataDirectory => RootDirectory / ".." / "nuke-tools" / "metadata";
     string GenerationDirectory => RootDirectory / "source" / "Nuke.Common" / "Tools";
@@ -198,6 +106,5 @@ class Build : NukeBuild
                 gitRepository: GitRepository.FromLocalDirectory(MetadataDirectory).NotNull());
         });
 
-    Target Full => _ => _
-        .DependsOn(Test, Analysis, Push);
+
 }

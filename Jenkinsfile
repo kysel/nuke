@@ -7,29 +7,11 @@ pipeline {
     stages {
         stage('Compile') {
             steps {
-                sh '/bin/bash ./build.sh Compile'
+                sh '/bin/bash ./build.sh Restore'
+                sh '/usr/bin mono /home/jenkins/.nuget/packages/gitversion.commandline/3.6.5/tools/GitVersion.exe'
             }
         }
-        stage('Test') {
-            steps {
-               sh '/bin/bash ./build.sh Test -Skip -NoInit'
-            }
-            post {
-                always {
-                    step([$class: 'XUnitPublisher', testTimeMargin: '3000', thresholdMode: 1, thresholds: [[$class: 'FailedThreshold', failureThreshold: '0']], tools: [[$class: 'XUnitDotNetTestType', deleteOutputFiles: false, failIfNotNew: false, pattern: 'output/tests.xml', skipNoTestFiles: false, stopProcessingIfError: true]]])
-                }
-            }
-        }
-        stage('Publish') {
-            steps {
-                sh '/bin/bash ./build.sh Publish -Skip -NoInit'
-            }
-        }
-        stage('Pack') {
-            steps {
-                sh '/bin/bash ./build.sh Pack -Skip -NoInit'
-            }
-        }
+      
         
     }
 }
