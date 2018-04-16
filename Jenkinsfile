@@ -8,7 +8,7 @@ pipeline {
         stage('Compile') {
             steps {
                 sh '/bin/bash ./build.sh Restore'
-                sh '/usr/bin mono /home/jenkins/.nuget/packages/gitversion.commandline/3.6.5/tools/GitVersion.exe'
+                sh '/usr/bin/mono /home/jenkins/.nuget/packages/gitversion.commandline/3.6.5/tools/GitVersion.exe'
             }
         }
       
