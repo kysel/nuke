@@ -134,5 +134,17 @@ namespace Nuke.Core.Tests
         {
             Assert(x => x.Add("-arg {value}", "secret", secret: true).Filter("foosecretbar"), "foo[hidden]bar");
         }
+
+        [Fact]
+        public void TestConcatenate()
+        {
+            var args = new Arguments();
+            args.Add("-arg {value}", "config2");;
+
+            Assert(x => x.Add("-arg {value}", "config1")
+                    .Add("-other-arg")
+                    .Concatenate(args),
+                "-arg config1 -other-arg -arg config2");
+        }
     }
 }
